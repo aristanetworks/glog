@@ -315,7 +315,8 @@ func (m *moduleSpec) Set(value string) error {
 			return errors.New("negative value for vmodule level")
 		}
 		if v == 0 {
-			continue // Ignore. It's harmless but no point in paying the overhead.
+			// hack: change 0 from flag to -1 here; this will mean to ignore this file
+			v = -1
 		}
 		// TODO: check syntax of filter?
 		filter = append(filter, modulePat{pattern, isLiteral(pattern), Level(v)})
@@ -977,6 +978,7 @@ func (lb logBridge) Write(b []byte) (n int, err error) {
 func (l *loggingT) setV(pc uintptr) Level {
 	fn := runtime.FuncForPC(pc)
 	file, _ := fn.FileLine(pc)
+
 	// The file is something like /a/b/c/d.go. We want just the d.
 	if strings.HasSuffix(file, ".go") {
 		file = file[:len(file)-3]
@@ -1016,13 +1018,11 @@ func V(level Level) Verbose {
 	// This function tries hard to be cheap unless there's work to do.
 	// The fast path is two atomic loads and compares.
 
-	// Here is a cheap but safe test to see if V logging is enabled globally.
-	if logging.verbosity.get() >= level {
-		return Verbose(true)
-	}
-
-	// It's off globally but it vmodule may still be set.
-	// Here is another cheap but safe test to see if vmodule is enabled.
+	// vmodule may be set. check it first to allow for files to be excluded
+	// e.g. -vmodule=noisyfile=0,*=9
+	//
+	// Note that this is likely disastrous for the happy path, where no logging is configured,
+	// without some further optimizations.
 	if atomic.LoadInt32(&logging.filterLength) > 0 {
 		// Now we need a proper lock to use the logging structure. The pcs field
 		// is shared so we must lock before accessing it. This is fairly expensive,
@@ -1037,7 +1037,13 @@ func V(level Level) Verbose {
 			v = logging.setV(logging.pcs[0])
 		}
 		logging.mu.Unlock()
-		return Verbose(v >= level)
+		if Verbose(v >= level) {
+			return Verbose(true)
+		}
+	}
+	// See if V logging is enabled globally.
+	if logging.verbosity.get() >= level {
+		return Verbose(true)
 	}
 	return Verbose(false)
 }
