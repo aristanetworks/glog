@@ -421,8 +421,11 @@ type loggingT struct {
 	// Boolean flags. Not handled atomically because the flag.Value interface
 	// does not let us avoid the =true, and that shorthand is necessary for
 	// compatibility. TODO: does this matter enough to fix? Seems unlikely.
-	toStderr     bool // The -logtostderr flag.
+	toWriter     bool // The -logtostderr flag.
 	alsoToStderr bool // The -alsologtostderr flag.
+
+	// writer is the writer for log output.
+	writer io.Writer
 
 	// Level flag. Handled atomically.
 	stderrThreshold severity // The -stderrthreshold flag.
@@ -694,10 +697,10 @@ func (l *loggingT) output(s severity, buf *buffer, file string, line int, alsoTo
 	}
 	data := buf.Bytes()
 	if !flag.Parsed() {
-		os.Stderr.Write([]byte("ERROR: logging before flag.Parse: "))
-		os.Stderr.Write(data)
-	} else if l.toStderr {
-		os.Stderr.Write(data)
+		l.writer.Write([]byte("ERROR: logging before flag.Parse: "))
+		l.writer.Write(data)
+	} else if l.toWriter {
+		l.writer.Write(data)
 	} else {
 		if alsoToStderr || l.alsoToStderr || s >= l.stderrThreshold.get() {
 			os.Stderr.Write(data)
@@ -733,7 +736,7 @@ func (l *loggingT) output(s severity, buf *buffer, file string, line int, alsoTo
 		// First, make sure we see the trace for the current goroutine on standard error.
 		// If -logtostderr has been specified, the loop below will do that anyway
 		// as the first stack in the full dump.
-		if !l.toStderr {
+		if !l.toWriter {
 			os.Stderr.Write(stacks(false))
 		}
 		// Write the stack trace for all goroutines to the files.

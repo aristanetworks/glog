@@ -83,7 +83,7 @@ func contains(s severity, str string, t *testing.T) bool {
 
 // setFlags configures the logging flags how the test expects them.
 func setFlags() {
-	logging.toStderr = false
+	logging.toWriter = false
 }
 
 // Test that Info works as advertised.
@@ -483,6 +483,17 @@ func TestRateLimit(t *testing.T) {
 	if suppressedCount != 1 {
 		t.Errorf("Saw %q %d times (expected 1): %s", suppressedLog,
 			suppressedCount, contents(infoLog))
+	}
+}
+
+func TestSetOutput(t *testing.T) {
+	logging.toWriter = true
+	buf := bytes.NewBuffer([]byte{})
+	defer SetOutput(SetOutput(buf))
+	log := "log to buffer"
+	Info(log)
+	if got := string(buf.Bytes()); !strings.Contains(got, log) {
+		t.Fatalf("unexpected log written to buffer: %s", got)
 	}
 }
 

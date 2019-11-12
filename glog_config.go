@@ -16,7 +16,11 @@
 
 package glog
 
-import "flag"
+import (
+	"flag"
+	"io"
+	"os"
+)
 
 func init() {
 	flag.Var(&logging.verbosity, "v", "log level for V logs")
@@ -25,7 +29,8 @@ func init() {
 	flag.Var(&logging.traceLocation, "log_backtrace_at",
 		"when logging hits line file:N, emit a stack trace")
 
-	logging.toStderr = true
+	logging.toWriter = true
+	logging.writer = os.Stderr
 
 	logging.setVState(0, nil, false)
 }
@@ -43,4 +48,12 @@ func SetVModule(value string) error {
 	// This value doesn't matter, I just need something to call Set on
 	m := moduleSpec{}
 	return m.Set(value)
+}
+
+// SetOutput sets the writer for log output. By default this is os.StdErr.
+// It returns the writer that was previously set.
+func SetOutput(w io.Writer) io.Writer {
+	prev := logging.writer
+	logging.writer = w
+	return prev
 }
