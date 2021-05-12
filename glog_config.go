@@ -57,3 +57,11 @@ func SetOutput(w io.Writer) io.Writer {
 	logging.writer = w
 	return prev
 }
+
+// SetOnFatalFunc sets a function to be called on glog.Fatal() invocation.
+// It allows to run some logic to report or track the error before os.Exit.
+// It's expected that the passed function doesn't hang (i.e. doing network request)
+// as it will halt the termination.
+func SetOnFatalFunc(f func([]byte)) {
+	logging.onFatalFunc = f
+}

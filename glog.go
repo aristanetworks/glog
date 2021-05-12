@@ -458,6 +458,8 @@ type loggingT struct {
 	vmodule     moduleSpec    // The state of the -vmodule flag.
 	verbosity   Level         // V logging level, the value of the -v flag/
 	rateLimiter *rate.Limiter // Rate limiter
+	// onFatalFunc allows to handle data on Fatal log
+	onFatalFunc func([]byte)
 }
 
 // buffer holds a byte Buffer for reuse. The zero value is ready for use.
@@ -695,7 +697,13 @@ func (l *loggingT) output(s severity, buf *buffer, file string, line int, alsoTo
 		}
 		atomic.StoreInt64(&stats.prevRateLimitedLines, curr)
 	}
+
 	data := buf.Bytes()
+
+	if s == fatalLog && l.onFatalFunc != nil {
+		l.onFatalFunc(data)
+	}
+
 	if !flag.Parsed() {
 		l.writer.Write([]byte("ERROR: logging before flag.Parse: "))
 		l.writer.Write(data)
