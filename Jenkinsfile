@@ -3,7 +3,6 @@ pipeline {
         timestamps()
     }
     environment {
-        GOPATH = "${WORKSPACE}"
         GOCACHE = "/tmp"
     }
     agent {
