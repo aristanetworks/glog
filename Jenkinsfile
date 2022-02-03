@@ -16,7 +16,7 @@ pipeline {
             steps {
                 dir("${WORKSPACE}/src/glog") {
                     // update env.PATH
-                    withEnv(["PATH+GO=${GOPATH}/bin:/usr/local/go/bin"]) {
+                    withEnv(["PATH+GO=${WORKSPACE}/bin:/usr/local/go/bin"]) {
                         git url: 'https://gerrit.corp.arista.io/glog'
                         // Fetch the changeset to a local branch using the build parameters provided to the
                         // build by the Gerrit plugin
