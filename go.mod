@@ -1,4 +1,4 @@
-module glog
+module github.com/aristanetworks/glog
 
 go 1.17
 
