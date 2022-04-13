@@ -1000,11 +1000,18 @@ func (l *loggingT) setV(pc uintptr) Level {
 	if strings.HasSuffix(file, ".go") {
 		file = file[:len(file)-3]
 	}
-	if slash := strings.LastIndex(file, "/"); slash >= 0 {
-		file = file[slash+1:]
-	}
+	fileCnt := strings.Count(file, "/")
 	for _, filter := range l.vmodule.filter {
-		if filter.match(file) {
+		patCnt := strings.Count(filter.pattern, "/")
+		fileSuffix := file
+		// If the pattern has one /, we want to extract c/d from file
+		// fileCnt = 4, patCnt = 1, split into 4 parts = "", "a", "b"
+		// and "c/d".
+		if fileCnt > patCnt {
+			fileparts := strings.SplitN(file, "/", fileCnt-patCnt+1)
+			fileSuffix = fileparts[len(fileparts)-1]
+		}
+		if filter.match(fileSuffix) {
 			l.vmap[pc] = filter.level
 			return filter.level
 		}

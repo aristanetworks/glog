@@ -307,6 +307,13 @@ var vGlobs = map[string]bool{
 	"m*=2":         false,
 	"??_*=2":       false,
 	"?[abc]?_*t=2": false,
+	// Verify specifying longer match patterns
+	"glog/glog_test=1":  false, // If -vmodule sets V to 1, V(2) will fail.
+	"glog/glog_test=2":  true,
+	"glog1/glog_test=2": false,
+	"glog/glog_test=3":  true, // If -vmodule sets V to 1, V(3) will succeed.
+	"glog/????_*=2":     true,
+	"glog/??_*=2":       false,
 }
 
 // Test that vmodule globbing works as advertised.
