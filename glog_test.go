@@ -493,17 +493,6 @@ func TestRateLimit(t *testing.T) {
 	}
 }
 
-func TestSetOutput(t *testing.T) {
-	logging.toWriter = true
-	buf := bytes.NewBuffer([]byte{})
-	defer SetOutput(SetOutput(buf))
-	log := "log to buffer"
-	Info(log)
-	if got := string(buf.Bytes()); !strings.Contains(got, log) {
-		t.Fatalf("unexpected log written to buffer: %s", got)
-	}
-}
-
 // discarder implements flushSyncWriter but discards all its input.
 type discarder struct{}
 

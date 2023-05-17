@@ -17,9 +17,15 @@
 package glog
 
 import (
+	"errors"
 	"flag"
 	"io"
 	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"golang.org/x/time/rate"
 )
 
 func init() {
@@ -35,19 +41,63 @@ func init() {
 	logging.setVState(0, nil, false)
 }
 
-// SetVGlobal sets the global verbosity level.
-func SetVGlobal(level string) {
-	// This value doesn't matter, I just need something to call Set on
-	l := Level(0)
-	l.Set(level)
+// VGlobal returns the current global verbosity level.
+func VGlobal() Level {
+	// we can't rely on LoadInt32 here because that returns 0 for some time between
+	// a config set transition, so Locck logging.mu
+	logging.mu.Lock()
+	v := logging.verbosity.get()
+	logging.mu.Unlock()
+	return v
 }
+
+// VModule gets the per-module verosity level.
+func VModule() string {
+	return logging.vmodule.String() // holds logging.mu
+}
+
+// SetVGlobal sets the global verbosity level.
+func SetVGlobal(v Level) Level {
+	logging.mu.Lock()
+	prev, _ := logging.setVState(v, logging.vmodule.filter, false)
+	logging.mu.Unlock()
+	return prev
+}
+
+var errVmoduleSyntax = errors.New("syntax error: expect comma-separated list of filename=N")
 
 // SetVModule sets the per-module verbosity level.
 // Syntax: message=2,routing*=1
-func SetVModule(value string) error {
-	// This value doesn't matter, I just need something to call Set on
-	m := moduleSpec{}
-	return m.Set(value)
+func SetVModule(value string) (string, error) {
+	var filter []modulePat
+	for _, pat := range strings.Split(value, ",") {
+		if len(pat) == 0 {
+			// Empty strings such as from a trailing comma can be ignored.
+			continue
+		}
+		patLev := strings.Split(pat, "=")
+		if len(patLev) != 2 || len(patLev[0]) == 0 || len(patLev[1]) == 0 {
+			return "", errVmoduleSyntax
+		}
+		pattern := patLev[0]
+		v, err := strconv.Atoi(patLev[1])
+		if err != nil {
+			return "", errors.New("syntax error: expect comma-separated list of filename=N")
+		}
+		if v < 0 {
+			return "", errors.New("negative value for vmodule level")
+		}
+		if v == 0 {
+			// hack: change 0 from flag to -1 here; this will mean to ignore this file
+			v = -1
+		}
+		// TODO: check syntax of filter?
+		filter = append(filter, modulePat{pattern, isLiteral(pattern), Level(v)})
+	}
+	logging.mu.Lock()
+	_, prev := logging.setVState(logging.verbosity, filter, true)
+	logging.mu.Unlock()
+	return specToString(prev), nil
 }
 
 // SetOutput sets the writer for log output. By default this is os.StdErr.
@@ -64,4 +114,20 @@ func SetOutput(w io.Writer) io.Writer {
 // as it will halt the termination.
 func SetOnFatalFunc(f func([]byte)) {
 	logging.onFatalFunc = f
+}
+
+// GetRateLimit returns the seconds and burst size for the current rate limiter
+func GetRateLimit() (float64, int) {
+	logging.mu.Lock()
+	limit := logging.rateLimiter.Limit()
+	burst := logging.rateLimiter.Burst()
+	logging.mu.Unlock()
+	return float64(limit), burst
+}
+
+// SetRateLimit sets the rate limit in seconds and burst size
+func SetRateLimit(limit time.Duration, burst int) {
+	logging.mu.Lock()
+	logging.rateLimiter = rate.NewLimiter(rate.Every(limit), burst)
+	logging.mu.Unlock()
 }

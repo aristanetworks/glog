@@ -66,8 +66,7 @@
 //		where pattern is a literal file name (minus the ".go" suffix) or
 //		"glob" pattern and N is a V level. For instance,
 //			-vmodule=gopher*=3
-//		sets the V level to 3 in all Go files whose names begin "gopher".
-//
+//		sets the V level to 3 in all Go files whose names begin "gopher"
 package glog
 
 import (
@@ -223,8 +222,8 @@ func (l *Level) get() Level {
 }
 
 // set sets the value of the Level.
-func (l *Level) set(val Level) {
-	atomic.StoreInt32((*int32)(l), int32(val))
+func (l *Level) set(val Level) Level {
+	return Level(atomic.SwapInt32((*int32)(l), int32(val)))
 }
 
 // String is part of the flag.Value interface.
@@ -239,13 +238,11 @@ func (l *Level) Get() interface{} {
 
 // Set is part of the flag.Value interface.
 func (l *Level) Set(value string) error {
-	v, err := strconv.Atoi(value)
+	v, err := strconv.ParseInt(value, 10, 32)
 	if err != nil {
 		return err
 	}
-	logging.mu.Lock()
-	logging.setVState(Level(v), logging.vmodule.filter, false)
-	logging.mu.Unlock()
+	_ = SetVGlobal(Level(v))
 	return nil
 }
 
@@ -273,16 +270,23 @@ func (m *modulePat) match(file string) bool {
 }
 
 func (m *moduleSpec) String() string {
-	var b bytes.Buffer
-	// Lock because the type is not atomic. TODO: clean this up.
 	logging.mu.Lock()
-	for i, f := range m.filter {
+	s := specToString(m.filter)
+	logging.mu.Unlock()
+	return s
+}
+
+func specToString(filter []modulePat) string {
+	var b bytes.Buffer
+	for i, f := range filter {
 		if i > 0 {
 			b.WriteRune(',')
 		}
+		if f.level == -1 { // account for hack that 0 value in pattern is -1 in memory
+			f.level = 0
+		}
 		fmt.Fprintf(&b, "%s=%d", f.pattern, f.level)
 	}
-	logging.mu.Unlock()
 	return b.String()
 }
 
@@ -292,39 +296,10 @@ func (m *moduleSpec) Get() interface{} {
 	return nil
 }
 
-var errVmoduleSyntax = errors.New("syntax error: expect comma-separated list of filename=N")
-
 // Syntax: -vmodule=recordio=2,file=1,gfs*=3
 func (m *moduleSpec) Set(value string) error {
-	var filter []modulePat
-	for _, pat := range strings.Split(value, ",") {
-		if len(pat) == 0 {
-			// Empty strings such as from a trailing comma can be ignored.
-			continue
-		}
-		patLev := strings.Split(pat, "=")
-		if len(patLev) != 2 || len(patLev[0]) == 0 || len(patLev[1]) == 0 {
-			return errVmoduleSyntax
-		}
-		pattern := patLev[0]
-		v, err := strconv.Atoi(patLev[1])
-		if err != nil {
-			return errors.New("syntax error: expect comma-separated list of filename=N")
-		}
-		if v < 0 {
-			return errors.New("negative value for vmodule level")
-		}
-		if v == 0 {
-			// hack: change 0 from flag to -1 here; this will mean to ignore this file
-			v = -1
-		}
-		// TODO: check syntax of filter?
-		filter = append(filter, modulePat{pattern, isLiteral(pattern), Level(v)})
-	}
-	logging.mu.Lock()
-	logging.setVState(logging.verbosity, filter, true)
-	logging.mu.Unlock()
-	return nil
+	_, err := SetVModule(value)
+	return err
 }
 
 // isLiteral reports whether the pattern is a literal string, that is, has no metacharacters
@@ -472,12 +447,15 @@ type buffer struct {
 var logging loggingT
 
 // setVState sets a consistent state for V logging.
-// l.mu is held.
-func (l *loggingT) setVState(verbosity Level, filter []modulePat, setFilter bool) {
+func (l *loggingT) setVState(verbosity Level, filter []modulePat, setFilter bool) (Level, []modulePat) {
 	// Turn verbosity off so V will not fire while we are in transition.
-	logging.verbosity.set(0)
+	prevL := logging.verbosity.set(0)
 	// Ditto for filter length.
 	atomic.StoreInt32(&logging.filterLength, 0)
+
+	// Copy previous module patterns
+	prevFilter := make([]modulePat, len(logging.vmodule.filter))
+	copy(prevFilter, logging.vmodule.filter)
 
 	// Set the new filters and wipe the pc->Level map if the filter has changed.
 	if setFilter {
@@ -489,6 +467,7 @@ func (l *loggingT) setVState(verbosity Level, filter []modulePat, setFilter bool
 	// They are enabled in order opposite to that in V.
 	atomic.StoreInt32(&logging.filterLength, int32(len(filter)))
 	logging.verbosity.set(verbosity)
+	return prevL, prevFilter
 }
 
 // getBuffer returns a new, ready-to-use buffer.
@@ -528,8 +507,11 @@ It returns a buffer containing the formatted header and the user's file and line
 The depth specifies how many stack frames above lives the source line to be identified in the log message.
 
 Log lines have this form:
+
 	Lmmdd hh:mm:ss.uuuuuu threadid file:line] msg...
+
 where the fields are defined as follows:
+
 	L                A single character, representing the log level (eg 'I' for INFO)
 	mm               The month (zero padded; ie May is '05')
 	dd               The day (zero padded)
@@ -1028,9 +1010,13 @@ type Verbose bool
 // The returned value is a boolean of type Verbose, which implements Info, Infoln
 // and Infof. These methods will write to the Info log if called.
 // Thus, one may write either
+//
 //	if glog.V(2) { glog.Info("log this") }
+//
 // or
+//
 //	glog.V(2).Info("log this")
+//
 // The second form is shorter but the first is cheaper if logging is off because it does
 // not evaluate its arguments.
 //
@@ -1225,20 +1211,4 @@ func Exitln(args ...interface{}) {
 func Exitf(format string, args ...interface{}) {
 	atomic.StoreUint32(&fatalNoStacks, 1)
 	logging.printf(fatalLog, format, args...)
-}
-
-// GetRateLimit returns the seconds and burst size for the current rate limiter
-func GetRateLimit() (float64, int) {
-	logging.mu.Lock()
-	limit := logging.rateLimiter.Limit()
-	burst := logging.rateLimiter.Burst()
-	logging.mu.Unlock()
-	return float64(limit), burst
-}
-
-// SetRateLimit sets the rate limit in seconds and burst size
-func SetRateLimit(limit time.Duration, burst int) {
-	logging.mu.Lock()
-	logging.rateLimiter = rate.NewLimiter(rate.Every(limit), burst)
-	logging.mu.Unlock()
 }
