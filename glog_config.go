@@ -116,18 +116,40 @@ func SetOnFatalFunc(f func([]byte)) {
 	logging.onFatalFunc = f
 }
 
-// GetRateLimit returns the seconds and burst size for the current rate limiter
-func GetRateLimit() (float64, int) {
-	logging.mu.Lock()
-	limit := logging.rateLimiter.Limit()
-	burst := logging.rateLimiter.Burst()
-	logging.mu.Unlock()
-	return float64(limit), burst
+// limitToDuration is inverse of rate.Every() func.
+func limitToDuration(in rate.Limit) time.Duration {
+	if in == rate.Inf {
+		return 0
+	}
+	seconds := float64(time.Second) * (1 / float64(in))
+	return time.Duration(seconds)
 }
 
-// SetRateLimit sets the rate limit in seconds and burst size
-func SetRateLimit(limit time.Duration, burst int) {
+// getRateLimit gets the rate limit config and converts it.
+// it does not take logging.mu.
+func getRateLimit() (time.Duration, int) {
+	if logging.rateLimiter == nil {
+		return 0, 0
+	}
+	limit := limitToDuration(logging.rateLimiter.Limit())
+	burst := logging.rateLimiter.Burst()
+	return limit, burst
+}
+
+// GetRateLimit returns the seconds and burst size for the current rate limiter.
+//
+// If no rate limit it setup, it will return zero values.
+func GetRateLimit() (time.Duration, int) {
 	logging.mu.Lock()
+	defer logging.mu.Unlock()
+	return getRateLimit()
+}
+
+// SetRateLimit sets the rate limit in seconds and burst size.
+func SetRateLimit(limit time.Duration, burst int) (time.Duration, int) {
+	logging.mu.Lock()
+	defer logging.mu.Unlock()
+	prevL, prevB := getRateLimit()
 	logging.rateLimiter = rate.NewLimiter(rate.Every(limit), burst)
-	logging.mu.Unlock()
+	return prevL, prevB
 }
