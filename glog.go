@@ -430,9 +430,10 @@ type loggingT struct {
 	traceLocation traceLocation
 	// These flags are modified only under lock, although verbosity may be fetched
 	// safely using atomic.LoadInt32.
-	vmodule     moduleSpec    // The state of the -vmodule flag.
-	verbosity   Level         // V logging level, the value of the -v flag/
-	rateLimiter *rate.Limiter // Rate limiter
+	vmodule           moduleSpec    // The state of the -vmodule flag.
+	verbosity         Level         // V logging level, the value of the -v flag/
+	rateLimiter       *rate.Limiter // Rate limiter
+	rateLimitDuration time.Duration
 	// onFatalFunc allows to handle data on Fatal log
 	onFatalFunc func([]byte)
 }

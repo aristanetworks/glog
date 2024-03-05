@@ -20,6 +20,9 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
+
+	"golang.org/x/time/rate"
 )
 
 func TestGetSetVGlobal(t *testing.T) {
@@ -82,6 +85,21 @@ func TestGetSetVModule(t *testing.T) {
 		t.Fatalf("unexpected previous vmodule: %#v", prev)
 	}
 
+}
+
+func TestLimitToDuration(t *testing.T) {
+	m := map[rate.Limit]time.Duration{
+		rate.Every(time.Second):      time.Second,
+		rate.Every(0):                0,
+		rate.Every(time.Hour):        time.Hour,
+		rate.Every(time.Millisecond): time.Millisecond,
+	}
+	for l, d := range m {
+		newD := limitToDuration(l)
+		if d != newD {
+			t.Errorf("limitToDuration(%v) = %d, should be %v", l, newD, d)
+		}
+	}
 }
 
 func TestSetOutput(t *testing.T) {
