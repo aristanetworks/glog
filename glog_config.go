@@ -34,7 +34,7 @@ func init() {
 		"comma-separated list of pattern=N settings for file-filtered logging")
 	flag.Var(&logging.traceLocation, "log_backtrace_at",
 		"when logging hits line file:N, emit a stack trace")
-	logging.discard = flag.Bool("discard", false, "discard all logs")
+	logging.discard = flag.Bool("glog_discard", false, "discard all logs")
 
 	logging.toWriter = true
 	logging.writer = os.Stderr
