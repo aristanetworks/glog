@@ -536,3 +536,23 @@ func BenchmarkInfoRateLimited(b *testing.B) {
 		Info("rate")
 	}
 }
+
+func TestDiscard(t *testing.T) {
+	setFlags()
+	*logging.discard = true
+	defer func() {
+		*logging.discard = false
+	}()
+	defer logging.swap(logging.newBuffers())
+
+	log := "log to buffer"
+	Info(log)
+	if contains(infoLog, log, t) {
+		t.Errorf("Unexpected log written: %s", contents(infoLog))
+	}
+
+	Error(log)
+	if contains(errorLog, log, t) {
+		t.Errorf("Unexpected log written: %s", contents(errorLog))
+	}
+}

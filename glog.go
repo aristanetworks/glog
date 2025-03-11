@@ -399,6 +399,8 @@ type loggingT struct {
 	toWriter     bool // The -logtostderr flag.
 	alsoToStderr bool // The -alsologtostderr flag.
 
+	discard *bool // The -discard flag
+
 	// writer is the writer for log output.
 	writer io.Writer
 
@@ -696,6 +698,8 @@ func (l *loggingT) output(s severity, buf *buffer, file string, line int, alsoTo
 	if !flag.Parsed() {
 		l.writer.Write([]byte("ERROR: logging before flag.Parse: "))
 		l.writer.Write(data)
+	} else if *l.discard {
+		// Do nothing
 	} else if l.toWriter {
 		l.writer.Write(data)
 	} else {
