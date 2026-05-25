@@ -72,6 +72,7 @@ package glog
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -1086,6 +1087,26 @@ func (v Verbose) Infof(format string, args ...interface{}) {
 	}
 }
 
+// InfoContext is like [Info], but with an extra [context.Context] parameter.
+//
+// WARNING: Do not use this for logging fields/keys from ctx. It is only meant to be used by the
+// vendor libraries.
+func (v Verbose) InfoContext(_ context.Context, args ...interface{}) {
+	if v {
+		logging.print(infoLog, args...)
+	}
+}
+
+// InfoContextf is like [Infof], but with an extra [context.Context] parameter.
+//
+// WARNING: Do not use this for logging fields/keys from ctx. It is only meant to be used by the
+// vendor libraries.
+func (v Verbose) InfoContextf(_ context.Context, format string, args ...interface{}) {
+	if v {
+		logging.printf(infoLog, format, args...)
+	}
+}
+
 // Info logs an informational message.
 // Arguments are handled in the manner of fmt.Print; a newline is appended if missing.
 func Info(args ...interface{}) {
@@ -1108,6 +1129,30 @@ func Infoln(args ...interface{}) {
 // Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
 func Infof(format string, args ...interface{}) {
 	logging.printf(infoLog, format, args...)
+}
+
+// InfoContext logs an informational message with a context.
+//
+// WARNING: Do not use this for logging fields/keys from ctx. It is only meant to be used by the
+// vendor libraries.
+func InfoContext(_ context.Context, args ...interface{}) {
+	logging.print(infoLog, args...)
+}
+
+// InfoContextf logs an informational message with a context.
+//
+// WARNING: Do not use this for logging fields/keys from ctx. It is only meant to be used by the
+// vendor libraries.
+func InfoContextf(_ context.Context, format string, args ...interface{}) {
+	logging.printf(infoLog, format, args...)
+}
+
+// InfoContextDepth acts as InfoContext but uses depth to determine which call frame to log.
+//
+// WARNING: Do not use this for logging fields/keys from ctx. It is only meant to be used by the
+// vendor libraries.
+func InfoContextDepth(_ context.Context, depth int, args ...interface{}) {
+	logging.printDepth(infoLog, depth, args...)
 }
 
 // Warning logs a warning message.
@@ -1134,6 +1179,30 @@ func Warningf(format string, args ...interface{}) {
 	logging.printf(warningLog, format, args...)
 }
 
+// WarningContext logs a warning message with a context.
+//
+// WARNING: Do not use this for logging fields/keys from ctx. It is only meant to be used by the
+// vendor libraries.
+func WarningContext(_ context.Context, args ...interface{}) {
+	logging.print(warningLog, args...)
+}
+
+// WarningContextf logs a warning message with a context.
+//
+// WARNING: Do not use this for logging fields/keys from ctx. It is only meant to be used by the
+// vendor libraries.
+func WarningContextf(_ context.Context, format string, args ...interface{}) {
+	logging.printf(warningLog, format, args...)
+}
+
+// WarningContextDepth acts as WarningContext but uses depth to determine which call frame to log.
+//
+// WARNING: Do not use this for logging fields/keys from ctx. It is only meant to be used by the
+// vendor libraries.
+func WarningContextDepth(_ context.Context, depth int, args ...interface{}) {
+	logging.printDepth(warningLog, depth, args...)
+}
+
 // Error logs an error message.
 // Arguments are handled in the manner of fmt.Print; a newline is appended if missing.
 func Error(args ...interface{}) {
@@ -1156,6 +1225,30 @@ func Errorln(args ...interface{}) {
 // Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
 func Errorf(format string, args ...interface{}) {
 	logging.printf(errorLog, format, args...)
+}
+
+// ErrorContext logs an error message with a context.
+//
+// WARNING: Do not use this for logging fields/keys from ctx. It is only meant to be used by the
+// vendor libraries.
+func ErrorContext(_ context.Context, args ...interface{}) {
+	logging.print(errorLog, args...)
+}
+
+// ErrorContextf logs an error message with a context.
+//
+// WARNING: Do not use this for logging fields/keys from ctx. It is only meant to be used by the
+// vendor libraries.
+func ErrorContextf(_ context.Context, format string, args ...interface{}) {
+	logging.printf(errorLog, format, args...)
+}
+
+// ErrorContextDepth acts as ErrorContext but uses depth to determine which call frame to log.
+//
+// WARNING: Do not use this for logging fields/keys from ctx. It is only meant to be used by the
+// vendor libraries.
+func ErrorContextDepth(_ context.Context, depth int, args ...interface{}) {
+	logging.printDepth(errorLog, depth, args...)
 }
 
 // Fatal logs a fatal message,
@@ -1185,6 +1278,30 @@ func Fatalln(args ...interface{}) {
 // Think carefully before using Fatalf, it is usually better to return an error to your caller.
 func Fatalf(format string, args ...interface{}) {
 	logging.printf(fatalLog, format, args...)
+}
+
+// FatalContext logs a fatal message with a context.
+//
+// WARNING: Do not use this for logging fields/keys from ctx. It is only meant to be used by the
+// vendor libraries.
+func FatalContext(_ context.Context, args ...interface{}) {
+	logging.print(fatalLog, args...)
+}
+
+// FatalContextf logs a fatal message with a context.
+//
+// WARNING: Do not use this for logging fields/keys from ctx. It is only meant to be used by the
+// vendor libraries.
+func FatalContextf(_ context.Context, format string, args ...interface{}) {
+	logging.printf(fatalLog, format, args...)
+}
+
+// FatalContextDepth acts as FatalContext but uses depth to determine which call frame to log.
+//
+// WARNING: Do not use this for logging fields/keys from ctx. It is only meant to be used by the
+// vendor libraries.
+func FatalContextDepth(_ context.Context, depth int, args ...interface{}) {
+	logging.printDepth(fatalLog, depth, args...)
 }
 
 // fatalNoStacks is non-zero if we are to exit without dumping goroutine stacks.
